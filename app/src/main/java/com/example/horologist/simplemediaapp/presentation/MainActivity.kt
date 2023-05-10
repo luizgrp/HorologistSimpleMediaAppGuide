@@ -20,43 +20,63 @@
  * changes to the libraries and their usages.
  */
 
+@file:OptIn(ExperimentalHorologistApi::class)
+
 package com.example.horologist.simplemediaapp.presentation
 
+import android.annotation.SuppressLint
 import android.os.Bundle
+import android.os.Vibrator
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.media3.exoplayer.ExoPlayer
 import com.google.android.horologist.annotations.ExperimentalHorologistApi
+import com.google.android.horologist.audio.SystemAudioRepository
+import com.google.android.horologist.audio.ui.VolumeViewModel
 import com.google.android.horologist.media.ui.components.PodcastControlButtons
-import com.google.android.horologist.media.ui.components.display.TextMediaDisplay
+import com.google.android.horologist.media.ui.screens.player.DefaultMediaInfoDisplay
 import com.google.android.horologist.media.ui.screens.player.PlayerScreen
+import com.google.android.horologist.media.ui.state.PlayerUiController
+import com.google.android.horologist.media.ui.state.PlayerUiState
 
 class MainActivity : ComponentActivity() {
 
-    @OptIn(ExperimentalHorologistApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        @SuppressLint("UnsafeOptInUsageError")
+        val player = ExoPlayer.Builder(this)
+            .setSeekForwardIncrementMs(5000L)
+            .setSeekBackIncrementMs(5000L)
+            .build()
+        // ViewModels should NOT be created here like this
+        val viewModel = MyViewModel(player)
+        val volumeViewModel = createVolumeViewModel()
+
         setContent {
             PlayerScreen(
-                mediaDisplay = {
-                    TextMediaDisplay(
-                        title = "Song name",
-                        subtitle = "Artist name"
-                    )
+                playerViewModel = viewModel,
+                volumeViewModel = volumeViewModel,
+                mediaDisplay = { playerUiState: PlayerUiState ->
+                    DefaultMediaInfoDisplay(playerUiState)
                 },
-                controlButtons = {
+                controlButtons = { playerUIController: PlayerUiController,
+                                   playerUiState: PlayerUiState ->
                     PodcastControlButtons(
-                        onPlayButtonClick = { },
-                        onPauseButtonClick = { },
-                        playPauseButtonEnabled = true,
-                        playing = false,
-                        onSeekBackButtonClick = { },
-                        seekBackButtonEnabled = true,
-                        onSeekForwardButtonClick = { },
-                        seekForwardButtonEnabled = true,
+                        playerController = playerUIController,
+                        playerUiState = playerUiState
                     )
                 },
                 buttons = { }
             )
         }
+    }
+
+    fun createVolumeViewModel(): VolumeViewModel {
+        val audioRepository = SystemAudioRepository.fromContext(application)
+        val vibrator: Vibrator = application.getSystemService(Vibrator::class.java)
+        return VolumeViewModel(audioRepository, audioRepository, onCleared = {
+            audioRepository.close()
+        }, vibrator)
     }
 }
